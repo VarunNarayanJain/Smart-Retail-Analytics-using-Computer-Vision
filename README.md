@@ -209,13 +209,17 @@ Smart-Retail-Analytics-using-Computer-Vision/
 │   └── sample_videos/             # Sample test videos
 │
 ├── src/                            # Source code
-│   ├── detection/                 # Person detection modules (YOLO)
-│   ├── tracking/                  # Tracking algorithms (SORT/DeepSORT)
+│   ├── detection/                 # Person detection modules (YOLO) ✅
+│   │   ├── person_detector.py    # YOLOv8 person detection
+│   │   └── __init__.py
+│   ├── tracking/                  # Tracking algorithms (SORT) ✅
+│   │   ├── tracker.py            # SORT-based person tracking
+│   │   └── __init__.py
 │   ├── analytics/                 # Analytics modules (footfall, dwell time)
-│   ├── utils/                     # Utility functions
+│   ├── utils/                     # Utility functions ✅
 │   │   ├── video_handler.py      # Video I/O operations
 │   │   └── __init__.py
-│   └── config.py                  # Configuration settings
+│   └── config.py                  # Configuration settings ✅
 │
 ├── models/                         # ML model weights
 │   └── yolov8n.pt                 # YOLO model (auto-downloaded)
@@ -229,11 +233,57 @@ Smart-Retail-Analytics-using-Computer-Vision/
 │
 ├── notebooks/                      # Jupyter notebooks for experiments
 │
-├── requirements.txt                # Python dependencies
-├── SETUP_GUIDE.md                 # Detailed setup instructions
-├── .gitignore                     # Git ignore rules
+├── main.py                         # Main entry point ✅
+├── requirements.txt                # Python dependencies ✅
+├── SETUP_GUIDE.md                 # Detailed setup instructions ✅
+├── PHASE2_TUTORIAL.md             # Phase 2 learning guide ✅
+├── PHASE2_VISUAL_GUIDE.md         # Phase 2 visual diagrams ✅
+├── PHASE2_SUMMARY.md              # Phase 2 complete summary ✅
+├── QUICK_START_PHASE2.md          # Phase 2 quick reference ✅
+├── PHASE3_TUTORIAL.md             # Phase 3 learning guide ✅
+├── QUICK_START_PHASE3.md          # Phase 3 quick reference ✅
+├── .gitignore                     # Git ignore rules ✅
 └── README.md                      # Project documentation
 ```
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# 1. Setup environment
+python -m venv venv
+.\venv\Scripts\Activate.ps1  # Windows
+pip install -r requirements.txt
+
+# 2. Test person detection (Phase 2)
+python main.py --webcam
+
+# 3. Test tracking (Phase 3)
+python main.py --webcam
+
+# 4. Test footfall counting (Phase 4) - NEW!
+python main.py --webcam --footfall
+
+# 5. Process video with footfall counting
+python main.py --video path/to/video.mp4 --footfall
+```
+
+---
+
+## 📊 Development Progress
+
+| Phase | Feature | Status | Files |
+|-------|---------|--------|-------|
+| **Phase 1** | Video I/O & Project Setup | ✅ Complete | `video_handler.py`, `config.py` |
+| **Phase 2** | Person Detection (YOLO) | ✅ Complete | `person_detector.py`, `main.py` |
+| **Phase 3** | Person Tracking (SORT) | ✅ Complete | `tracker.py`, updated `main.py` |
+| **Phase 4** | Footfall Counting | ✅ Complete | `footfall_counter.py`, entry/exit detection |
+| **Phase 5** | Dwell Time & Heatmaps | 🔜 Next | Coming soon |
+| **Phase 6** | Anti-Theft Detection | ⏳ Planned | - |
+| **Phase 7** | Reports & Dashboard | ⏳ Planned | - |
+
+**Progress: 57% (4/7 phases complete)** 🚀
 
 ---
 

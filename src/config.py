@@ -1,7 +1,13 @@
 """
 Configuration file for Smart Retail Analytics System
 
-This file centralizes all configuration settings for the project.
+This file centralizes all configuratLINE_THICKNESS = 3  # Thickness of entrance line
+LINE_COLOR_ENTRANCE = (0, 255, 255)  # Yellow/Cyan for entrance line (BGR)
+CROSSING_BUFFER = 5  # Pixels buffer to confirm line crossing
+MIN_FRAMES_FOR_DIRECTION = 3  # Minimum frames to determine direction
+
+# Debug mode - Set to True to see position tracking (lots of output!)
+FOOTFALL_DEBUG_MODE = False  # ← Disabled - Issue identified! Set to True only for troubleshootingtings for the project.
 This makes it easy to modify parameters without changing the core code.
 """
 
@@ -28,7 +34,8 @@ DEFAULT_VIDEO_PATH = INPUT_VIDEOS_DIR / "test_video.mp4"
 WEBCAM_INDEX = 0  # 0 for default webcam
 
 # Frame processing
-PROCESS_EVERY_N_FRAMES = 1  # Process every frame (1) or skip frames (2, 3, etc.)
+PROCESS_EVERY_N_FRAMES = 1  # Process every frame (1) for best real-time tracking
+                             # Increase to 2-3 only if performance is slow
 RESIZE_WIDTH = 1280  # Resize frame width for processing (None to keep original)
 RESIZE_HEIGHT = 720  # Resize frame height
 
@@ -43,7 +50,8 @@ YOLO_MODEL = "yolov8n.pt"  # Options: yolov8n, yolov8s, yolov8m, yolov8l, yolov8
                             # 'n' = nano (fastest), 'x' = extra large (most accurate)
 
 # Detection parameters
-CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to detect a person (0.0 - 1.0)
+CONFIDENCE_THRESHOLD = 0.25  # Minimum confidence to detect a person (0.0 - 1.0)
+                             # Lowered to 0.25 for faster detection response (was 0.35)
 IOU_THRESHOLD = 0.45  # Intersection over Union threshold for NMS
 PERSON_CLASS_ID = 0  # COCO dataset class ID for 'person'
 
@@ -51,14 +59,52 @@ PERSON_CLASS_ID = 0  # COCO dataset class ID for 'person'
 # Tracking algorithm
 TRACKING_METHOD = "deepsort"  # Options: "sort", "deepsort", "bytetrack"
 
-# Tracking parameters
-MAX_DISAPPEARED = 30  # Max frames to keep track before removing
-MAX_DISTANCE = 50  # Max distance for track association
+# Tracking parameters - OPTIMIZED FOR REAL-TIME RESPONSIVENESS
+MAX_DISAPPEARED = 20  # Max frames to keep track before removing (reduced from 30 for faster response)
+MAX_DISTANCE = 250  # Max distance for track association (increased to 250 for very fast movement)
 
 # ==================== ANALYTICS ====================
-# Footfall counting
-ENTRY_LINE_POSITION = 0.2  # Entry line at 20% of frame height (from top)
-EXIT_LINE_POSITION = 0.8   # Exit line at 80% of frame height
+# Occupancy Tracking (Phase 4 - ZONE-BASED)
+# NEW APPROACH: Uses polygon zones instead of line crossing
+# More reliable and works with any camera angle!
+
+# Zone-based settings
+ENABLE_OCCUPANCY_LOGGING = True  # Log occupancy events to CSV
+OCCUPANCY_LOG_FILE = "occupancy_log.csv"
+
+# Visual settings for zone overlay
+ZONE_COLOR = (0, 255, 255)  # Yellow (BGR)
+ZONE_THICKNESS = 3
+ZONE_FILL_ALPHA = 0.15  # Transparency of zone overlay (0=transparent, 1=opaque)
+
+# Person visualization colors
+PERSON_INSIDE_COLOR = (0, 255, 0)  # Green = inside zone
+PERSON_OUTSIDE_COLOR = (0, 0, 255)  # Red = outside zone
+
+# ==================== LEGACY: LINE-BASED FOOTFALL (DEPRECATED) ====================
+# These settings are kept for backward compatibility with --footfall flag
+# RECOMMENDED: Use --occupancy flag with zone-based tracking instead!
+
+ENTRANCE_LINE_ORIENTATION = 'vertical'  # 'horizontal' or 'vertical'
+ENTRANCE_LINE_POSITION = 0.35  # 0.0 to 1.0 (percentage position)
+REVERSE_ENTRY_DIRECTION = True  # Flip entry/exit directions
+LINE_THICKNESS = 3
+LINE_COLOR_ENTRANCE = (0, 255, 255)  # Yellow (BGR)
+CROSSING_BUFFER = 1  # Pixels buffer for line crossing
+MIN_FRAMES_FOR_DIRECTION = 2
+FOOTFALL_DEBUG_MODE = False  # Set True for detailed crossing logs
+INSIDE_ZONE_POSITION = 'left'  # Which side is "inside": 'left', 'right', 'top', 'bottom'
+ENABLE_FOOTFALL_LOGGING = True  # Log footfall events to CSV
+FOOTFALL_LOG_FILE = "footfall_log.csv"
+
+# Occupancy tracking
+ENABLE_OCCUPANCY_TRACKING = True  # Track current people count
+MAX_OCCUPANCY_LIMIT = 50  # Maximum allowed occupancy (for alerts)
+
+# Data logging
+ENABLE_FOOTFALL_LOGGING = True  # Log all entry/exit events
+FOOTFALL_LOG_FILE = "footfall_log.csv"  # CSV file for footfall data
+SAVE_LOGS_DIR = REPORTS_DIR / "logs"  # Directory for log files
 
 # Dwell time (in seconds)
 MIN_DWELL_TIME = 5  # Minimum time to consider as "dwelled"
@@ -95,6 +141,7 @@ def create_directories():
         PROCESSED_VIDEOS_DIR,
         HEATMAPS_DIR,
         REPORTS_DIR,
+        REPORTS_DIR / "logs",  # For footfall logs
         MODELS_DIR
     ]
     

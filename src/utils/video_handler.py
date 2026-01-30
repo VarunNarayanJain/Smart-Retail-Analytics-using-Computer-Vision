@@ -141,6 +141,17 @@ class VideoHandler:
             self.cap.release()
             print("✅ Video capture released.")
     
+    def reset(self):
+        """
+        Reset video to beginning.
+        
+        Useful for re-processing or when you need to read from start again.
+        """
+        if self.cap is not None and not self.use_webcam:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            self.current_frame = 0
+            print("🔄 Video reset to beginning")
+    
     def get_progress(self):
         """
         Get current progress percentage.
@@ -148,9 +159,73 @@ class VideoHandler:
         Returns:
             float: Progress percentage (0-100)
         """
-        if self.total_frames == 0:
+        if self.use_webcam or self.total_frames == 0:
             return 0
         return (self.current_frame / self.total_frames) * 100
+    
+    @staticmethod
+    def setup_window(window_name="Frame", width=1280, height=720, x=50, y=50):
+        """
+        Setup a properly sized and positioned display window.
+        Fixes issue with small windows in corner causing coordinate mismatches.
+        
+        Args:
+            window_name: Name of the window
+            width: Window width in pixels
+            height: Window height in pixels
+            x: X position on screen
+            y: Y position on screen
+        
+        Returns:
+            str: Window name for use with imshow()
+        
+        LEARNING: Proper window setup prevents coordinate mismatch issues!
+        """
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+        cv2.resizeWindow(window_name, width, height)
+        cv2.moveWindow(window_name, x, y)
+        print(f"✅ Display window configured: {width}x{height} at position ({x}, {y})")
+        return window_name
+    
+    @staticmethod
+    def add_mouse_callback(window_name, frame_width, frame_height, entrance_line_pos=None):
+        """
+        Add mouse click callback to display pixel coordinates.
+        Useful for debugging line positions and coordinate issues.
+        
+        Args:
+            window_name: Name of the window
+            frame_width: Actual frame width
+            frame_height: Actual frame height
+            entrance_line_pos: Optional entrance line position (0.0-1.0)
+        
+        LEARNING: Mouse callbacks help debug coordinate systems!
+        """
+        def mouse_callback(event, x, y, flags, param):
+            if event == cv2.EVENT_LBUTTONDOWN:
+                width, height, line_pos = param
+                print(f"\n🖱️  MOUSE CLICK DEBUG:")
+                print(f"   Clicked at: X={x}, Y={y}")
+                print(f"   Frame size: {width}x{height}")
+                print(f"   Percentage: X={x/width*100:.1f}%, Y={y/height*100:.1f}%")
+                
+                if line_pos is not None:
+                    line_x = int(width * line_pos)
+                    distance = x - line_x
+                    print(f"   Entrance line at: X={line_x} ({line_pos*100:.0f}%)")
+                    print(f"   Distance from line: {distance} pixels {'(RIGHT)' if distance > 0 else '(LEFT)'}")
+                    
+                    if abs(distance) < 20:
+                        print(f"   ⚠️  Very close to line! Try crossing it.")
+                    elif distance < -50:
+                        print(f"   ← You're on LEFT side (inside store)")
+                    elif distance > 50:
+                        print(f"   → You're on RIGHT side (outside store)")
+                print()
+        
+        cv2.setMouseCallback(window_name, mouse_callback, 
+                            (frame_width, frame_height, entrance_line_pos))
+        print(f"✅ Mouse callback enabled - Click on frame to see coordinates!")
     
     @staticmethod
     def display_frame(frame, window_name="Frame", wait_time=1):
