@@ -22,8 +22,11 @@ from detection.person_detector import PersonDetector
 from tracking.tracker import PersonTracker
 from analytics.footfall_counter import FootfallCounter  # OLD: Phase 4 (line-based)
 from analytics.occupancy_tracker import OccupancyTracker  # NEW: Phase 4 (zone-based)
+from analytics.section_analyzer import SectionAnalyzer  # NEW: Phase 5
+from analytics.heatmap_generator import HeatmapGenerator  # NEW: Phase 5
 from utils.video_handler import VideoHandler, VideoWriter
 from utils.zone_selector import ZoneSelector
+from utils.multi_section_selector import MultiSectionSelector  # NEW: Phase 5
 import cv2
 
 
@@ -756,6 +759,270 @@ def run_occupancy_webcam():
         cv2.destroyAllWindows()
 
 
+def run_complete_analytics(video_path, redefine_zones=False):
+    """
+    Run COMPLETE analytics: Occupancy + Section Analysis + Heatmap
+    
+    This is Phase 5 - combines everything into one comprehensive analysis.
+    
+    Args:
+        video_path: Path to video file
+        redefine_zones: Force zone/section reselection
+    """
+    print("\n" + "="*60)
+    print("PHASE 5: COMPLETE RETAIL ANALYTICS")
+    print("="*60)
+    print("Input:", video_path)
+    print("="*60)
+    print("\nThis will provide:")
+    print("  ✅ Overall occupancy tracking")
+    print("  ✅ Section-wise occupancy analysis")
+    print("  ✅ Heatmap visualization (hot/cold zones)")
+    print("="*60 + "\n")
+    
+    video_path = Path(video_path)
+    if not video_path.exists():
+        print(f"❌ Video not found: {video_path}")
+        return
+    
+    # Initialize
+    detector = PersonDetector()
+    tracker = PersonTracker(max_age=MAX_DISAPPEARED, min_hits=3, iou_threshold=0.3)
+    video = VideoHandler(source=str(video_path))
+    
+    # Get first frame
+    ret, first_frame = video.read_frame()
+    if not ret:
+        print("❌ Failed to read video")
+        return
+    
+    height, width = first_frame.shape[:2]
+    video.reset()
+    
+    # Calculate duration
+    duration = video.total_frames / video.fps if video.fps > 0 else 0
+    
+    print(f"\n{'='*60}")
+    print("VIDEO INFORMATION")
+    print(f"{'='*60}")
+    print(f"Source: {video_path}")
+    print(f"FPS: {video.fps}")
+    print(f"Resolution: {width} x {height}")
+    print(f"Total Frames: {video.total_frames}")
+    print(f"Duration: {duration:.2f} seconds")
+    print(f"{'='*60}\n")
+    
+    # STEP 1: Define store boundary (main zone)
+    store_zone = None
+    if not redefine_zones:
+        store_zone = ZoneSelector.load_zone(str(video_path))
+        if store_zone is not None:
+            print("✅ Loaded saved store zone")
+            
+            # Ask user if they want to redefine
+            print("\n" + "="*60)
+            response = input("Do you want to REDEFINE store boundary? (yes/no): ").strip().lower()
+            print("="*60 + "\n")
+            
+            if response in ['yes', 'y']:
+                print("🔄 Redefining store boundary...")
+                store_zone = None  # Force reselection
+            else:
+                print("✅ Using saved store zone\n")
+    
+    if store_zone is None:
+        print("📍 STEP 1: Define STORE BOUNDARY (main zone)")
+        print("   This is the overall area to track occupancy.\n")
+        
+        selector = ZoneSelector(first_frame, "Define Store Boundary")
+        store_zone = selector.select_zone()
+        
+        if store_zone is None:
+            print("❌ Store zone selection cancelled")
+            return
+        
+        ZoneSelector.save_zone(store_zone, str(video_path))
+    
+    # STEP 2: Define sections
+    sections = None
+    if not redefine_zones:
+        sections = MultiSectionSelector.load_sections(str(video_path))
+        if sections is not None:
+            print(f"✅ Loaded {len(sections)} saved sections:")
+            for idx, section in enumerate(sections, 1):
+                print(f"   {idx}. {section['name']}")
+            
+            # Ask user if they want to redefine
+            print("\n" + "="*60)
+            response = input("Do you want to REDEFINE sections? (yes/no): ").strip().lower()
+            print("="*60 + "\n")
+            
+            if response in ['yes', 'y']:
+                print("🔄 Redefining sections...")
+                sections = None  # Force reselection
+            else:
+                print("✅ Using saved sections\n")
+    
+    if sections is None:
+        print("\n📍 STEP 2: Define SECTIONS")
+        print("   Define areas like Electronics, Clothing, Groceries, etc.\n")
+        
+        section_selector = MultiSectionSelector(first_frame)
+        sections = section_selector.select_sections()
+        
+        if sections is None or len(sections) == 0:
+            print("⚠️  No sections defined. Running with overall occupancy only.")
+            sections = []
+        else:
+            MultiSectionSelector.save_sections(sections, str(video_path))
+    
+    # Initialize all trackers
+    print("\n🔄 Initializing analytics modules...")
+    
+    # Overall occupancy tracker
+    occupancy_tracker = OccupancyTracker(
+        frame_height=height,
+        frame_width=width,
+        zone_points=store_zone,
+        enable_logging=True
+    )
+    
+    # Section analyzer (if sections defined)
+    section_analyzer = None
+    if len(sections) > 0:
+        section_analyzer = SectionAnalyzer(
+            sections=sections,
+            frame_width=width,
+            frame_height=height,
+            enable_logging=True
+        )
+    
+    # Heatmap generator
+    heatmap_gen = HeatmapGenerator(
+        frame_width=width,
+        frame_height=height,
+        blur_kernel=(25, 25)
+    )
+    
+    # Setup output
+    output_name = f"analytics_{video_path.stem}.mp4"
+    output_path = PROCESSED_VIDEOS_DIR / output_name
+    writer = VideoWriter(str(output_path), video.fps, width, height)
+    
+    # Colors for person boxes
+    colors = [
+        (255, 0, 0), (0, 255, 0), (0, 0, 255),
+        (255, 255, 0), (255, 0, 255), (0, 255, 255),
+        (128, 0, 0), (0, 128, 0), (0, 0, 128)
+    ]
+    
+    frame_count = 0
+    
+    print("\n🎬 Processing video with complete analytics...\n")
+    
+    try:
+        while True:
+            ret, frame = video.read_frame()
+            if not ret:
+                break
+            
+            frame_count += 1
+            
+            # Detect people
+            detections, _ = detector.detect(frame)
+            
+            # Track people
+            tracked_objects = tracker.update(detections)
+            
+            # Update overall occupancy
+            occ_stats = occupancy_tracker.update(tracked_objects, frame_count)
+            
+            # Update section analysis
+            if section_analyzer:
+                section_stats = section_analyzer.update(tracked_objects, frame_count)
+            
+            # Accumulate heatmap data (only for people inside store)
+            people_inside_store = [
+                obj for obj in tracked_objects
+                if ZoneSelector.point_in_polygon(obj['center'], store_zone)
+            ]
+            heatmap_gen.add_positions(people_inside_store)
+            
+            # Draw tracked objects
+            for obj in tracked_objects:
+                x, y, w, h = [int(v) for v in obj['bbox']]
+                track_id = obj['id']
+                cx, cy = obj['center']
+                
+                # Check if inside store zone
+                is_inside = ZoneSelector.point_in_polygon((cx, cy), store_zone)
+                
+                # Color based on inside/outside
+                box_color = (0, 255, 0) if is_inside else (0, 0, 255)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), box_color, 2)
+                
+                # Label
+                label = f"ID:{track_id}" + (" IN" if is_inside else " OUT")
+                label_bg = (0, 200, 0) if is_inside else (0, 0, 200)
+                label_w = 100 if is_inside else 110
+                cv2.rectangle(frame, (x, y - 25), (x + label_w, y), label_bg, -1)
+                cv2.putText(frame, label, (x + 5, y - 7),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                
+                # Center point
+                cv2.circle(frame, (cx, cy), 4, box_color, -1)
+            
+            # Draw store zone
+            frame = occupancy_tracker.draw_zone(frame)
+            
+            # Draw sections
+            if section_analyzer:
+                frame = section_analyzer.draw_sections(frame)
+            
+            # Draw heatmap overlay (subtle)
+            frame = heatmap_gen.generate_heatmap_overlay(frame, alpha=0.3)
+            
+            # Draw overall occupancy stats (top-right)
+            frame = occupancy_tracker.draw_stats(frame, position='top-right')
+            
+            # Draw section stats (bottom-left)
+            if section_analyzer:
+                frame = section_analyzer.draw_stats(frame, position='bottom-left')
+            
+            # Write frame
+            writer.write_frame(frame)
+            
+            # Progress update
+            if frame_count % 30 == 0:
+                progress = (frame_count / video.total_frames) * 100
+                print(f"Processed {frame_count}/{video.total_frames} frames ({progress:.1f}%) | "
+                      f"Occupancy: {occ_stats['occupancy']} | Peak: {occ_stats['max_occupancy']}")
+        
+        print(f"\n✅ Processing complete! Processed {frame_count} frames\n")
+        
+        # Save standalone heatmap
+        heatmap_path = HEATMAPS_DIR / f"heatmap_{video_path.stem}.jpg"
+        heatmap_gen.save_heatmap(heatmap_path)
+        
+        # Print summaries
+        occupancy_tracker.print_summary()
+        
+        if section_analyzer:
+            section_analyzer.print_summary()
+        
+        heatmap_gen.print_summary()
+        
+        print(f"\n📹 Analytics video saved: {output_path}")
+        print(f"🔥 Heatmap saved: {heatmap_path}")
+        
+        if section_analyzer:
+            print(f"📊 Section log: {section_analyzer.log_file}")
+        
+    finally:
+        video.release()
+        writer.release()
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -776,9 +1043,13 @@ Examples:
     parser.add_argument('--footfall', action='store_true',
                         help='Enable footfall counting - LINE-BASED (Phase 4 - OLD)')
     parser.add_argument('--occupancy', action='store_true',
-                        help='Enable occupancy tracking - ZONE-BASED (Phase 4 - NEW, RECOMMENDED)')
+                        help='Enable occupancy tracking - ZONE-BASED (Phase 4 - RECOMMENDED)')
+    parser.add_argument('--analytics', action='store_true',
+                        help='Enable complete analytics - Occupancy + Sections + Heatmap (Phase 5 - COMPREHENSIVE)')
     parser.add_argument('--redefine-zone', action='store_true',
                         help='Force zone reselection (ignore saved zone)')
+    parser.add_argument('--redefine-zones', action='store_true',
+                        help='Force zone AND section reselection (for --analytics)')
     parser.add_argument('--demo', action='store_true',
                         help='Run demo mode (webcam)')
     
@@ -798,22 +1069,36 @@ Examples:
         else:
             run_webcam_demo()
     elif args.video:
-        if args.occupancy:
+        if args.analytics:
+            # Phase 5: Complete analytics
+            redefine = args.redefine_zones or args.redefine_zone
+            run_complete_analytics(args.video, redefine_zones=redefine)
+        elif args.occupancy:
+            # Phase 4: Occupancy only
             run_occupancy_video(args.video, redefine_zone=args.redefine_zone)
         elif args.footfall:
+            # Phase 4: Footfall (old line-based)
             run_footfall_video(args.video)
         else:
             run_video_analysis(args.video)
     else:
         print("\n❌ No mode specified!")
-        print("\nUsage:")
-        print("  python main.py --webcam                             # Live detection")
-        print("  python main.py --webcam --occupancy                 # Live occupancy (ZONE-BASED, RECOMMENDED)")
-        print("  python main.py --webcam --footfall                  # Live footfall (LINE-BASED, OLD)")
-        print("  python main.py --video video.mp4                    # Process video")
-        print("  python main.py --video video.mp4 --occupancy        # Video with occupancy (RECOMMENDED)")
-        print("  python main.py --video video.mp4 --occupancy --redefine-zone  # Reselect zone")
-        print("  python main.py --video video.mp4 --footfall         # Video with footfall (OLD)")
+        print("\n" + "="*70)
+        print("USAGE EXAMPLES")
+        print("="*70)
+        print("\n📹 PHASE 4: Occupancy Tracking (Single Zone)")
+        print("  python main.py --video video.mp4 --occupancy")
+        print("  python main.py --video video.mp4 --occupancy --redefine-zone")
+        print("  python main.py --webcam --occupancy")
+        print("\n📊 PHASE 5: Complete Analytics (Multi-Section + Heatmap) ⭐ RECOMMENDED")
+        print("  python main.py --video video.mp4 --analytics")
+        print("  python main.py --video video.mp4 --analytics --redefine-zones")
+        print("\n🔧 Other Options:")
+        print("  python main.py --webcam                      # Simple detection")
+        print("  python main.py --video video.mp4             # Basic processing")
+        print("  python main.py --video video.mp4 --footfall  # Old line-based (deprecated)")
+        print("\n💡 For detailed help: python main.py --help")
+        print("="*70)
         print("\nFor help: python main.py --help")
 
 
