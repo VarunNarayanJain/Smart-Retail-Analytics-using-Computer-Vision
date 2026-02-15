@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production_Ready-success.svg)]()
 
-**[Features](#-key-features) • [Demo](#-live-demo) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Architecture](#-system-architecture)**
+**[Features](#-key-features) • [Demo](#-live-demo) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Architecture](#-system-architecture) • [Input](https://drive.google.com/file/d/1DE4r-3Eh9kk4qc29GIEFxLT2KjVslxwE/view?usp=sharing) • [Output](https://docs.google.com/videos/d/1tbtLiz_tHpzwEFp64jbsELG1cCQKeR7RhYEAHDixlbY/edit?usp=sharing)**
 
 ---
 
