@@ -46,6 +46,8 @@ data/sample_videos/*.mp4
 data/sample_videos/*.avi
 outputs/processed_videos/*.mp4
 outputs/processed_videos/*.avi
+outputs/processed_videos/*.7z
+outputs/*.7z
 outputs/heatmaps/*.png
 outputs/heatmaps/*.jpg
 outputs/reports/*.csv
